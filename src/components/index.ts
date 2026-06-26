@@ -13,6 +13,7 @@ export type { TableColumn } from './Table';
 export { Layout } from './Layout';
 export { Navigation } from './Navigation';
 export { ProtectedRoute } from './ProtectedRoute';
+export { ErrorBoundary } from './ErrorBoundary';
 export { KPIBadge } from './KPIBadge';
 export { HoldingsList } from './HoldingsList';
 export { AllocationChart } from './AllocationChart';

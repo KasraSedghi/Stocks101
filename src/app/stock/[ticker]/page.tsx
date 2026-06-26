@@ -14,6 +14,7 @@ import {
   Modal,
   Card,
   ChatTerminal,
+  ErrorBoundary,
 } from '@/components';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ChevronLeft, Star, MessageSquare } from 'lucide-react';
@@ -39,7 +40,9 @@ export default function StockDetailPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <StockDetail />
+        <ErrorBoundary>
+          <StockDetail />
+        </ErrorBoundary>
       </Layout>
     </ProtectedRoute>
   );

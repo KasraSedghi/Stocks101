@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolio } from '@/hooks';
-import { ProtectedRoute, Layout, KPIBadge, HoldingsList, AllocationChart, RecentTransactions } from '@/components';
+import { ProtectedRoute, Layout, KPIBadge, HoldingsList, AllocationChart, RecentTransactions, ErrorBoundary } from '@/components';
 import { formatCurrency, formatPercent } from '@/utils/financial';
 import {
   Wallet,
@@ -17,7 +17,9 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <Dashboard />
+        <ErrorBoundary>
+          <Dashboard />
+        </ErrorBoundary>
       </Layout>
     </ProtectedRoute>
   );

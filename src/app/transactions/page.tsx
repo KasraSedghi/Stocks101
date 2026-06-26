@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ProtectedRoute, Button, Card, Input, Modal } from '@/components';
+import { ProtectedRoute, Button, Card, Input, Modal, ErrorBoundary } from '@/components';
 import { Layout } from '@/components';
 import { usePortfolio } from '@/hooks';
 import { useToast } from '@/hooks';
@@ -13,7 +13,9 @@ export default function TransactionsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <TransactionHistory />
+        <ErrorBoundary>
+          <TransactionHistory />
+        </ErrorBoundary>
       </Layout>
     </ProtectedRoute>
   );

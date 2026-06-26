@@ -12,6 +12,7 @@ import {
   Input,
   Modal,
   Skeleton,
+  ErrorBoundary,
 } from '@/components';
 import { formatCurrency, formatPercent } from '@/utils/financial';
 import { COLORS } from '@/config/design-tokens';
@@ -24,7 +25,9 @@ export default function WatchlistPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <Watchlist />
+        <ErrorBoundary>
+          <Watchlist />
+        </ErrorBoundary>
       </Layout>
     </ProtectedRoute>
   );

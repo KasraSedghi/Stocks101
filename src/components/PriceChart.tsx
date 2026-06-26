@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   AreaChart,
   Area,
@@ -30,7 +30,7 @@ export interface PriceChartProps {
   onTimeframeHover?: (timeframe: Timeframe) => void;
 }
 
-export function PriceChart({
+function PriceChartComponent({
   ticker,
   data,
   transactionMarkers,
@@ -122,7 +122,7 @@ export function PriceChart({
             onTimeframeChange={onTimeframeChange}
             onHover={onTimeframeHover}
           />
-          <Skeleton variant="chart" className="w-full h-64" />
+          <Skeleton variant="chart" className="w-full h-48 md:h-64 lg:h-96" />
         </div>
       </Card>
     );
@@ -164,7 +164,8 @@ export function PriceChart({
           onHover={onTimeframeHover}
         />
 
-        <ResponsiveContainer width="100%" height={300}>
+        <div className="h-48 md:h-64 lg:h-96">
+          <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
             margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
@@ -232,7 +233,8 @@ export function PriceChart({
               );
             })}
           </AreaChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        </div>
 
         {transactionMarkers.length > 0 && (
           <div className="text-xs text-gray-500 text-center">
@@ -243,3 +245,5 @@ export function PriceChart({
     </Card>
   );
 }
+
+export const PriceChart = React.memo(PriceChartComponent);
