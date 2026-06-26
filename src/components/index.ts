@@ -27,3 +27,5 @@ export { QuickActions } from './QuickActions';
 export type { QuickActionsProps } from './QuickActions';
 export { TransactionForm } from './TransactionForm';
 export type { TransactionFormProps } from './TransactionForm';
+export { ChatTerminal } from './ChatTerminal';
+export type { ChatTerminalProps } from './ChatTerminal';
