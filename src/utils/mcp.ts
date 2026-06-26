@@ -6,27 +6,44 @@ export type MCPTool =
   | 'bear_vs_bull';
 
 export function extractTicker(message: string, lastTicker?: string): string | null {
-  // Find all potential ticker symbols (1-5 uppercase letters at word boundaries)
-  const matches = message.match(/\b([A-Z]{1,5})\b/gi);
-  if (!matches) return lastTicker || null;
-
-  // Filter out common English words that look like tickers
+  // Common English words that are not stock tickers
   const commonWords = new Set([
     'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER',
     'WAS', 'ONE', 'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW',
     'ITS', 'MAY', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WAY', 'WHO', 'BOY',
-    'DID', 'ITS', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE', 'WHAT', 'WHICH',
-    'BEAT', 'MISS', 'EARNINGS', 'SHOULD', 'VALUATION'
+    'DID', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE', 'WHAT', 'WHICH',
+    'BEAT', 'MISS', 'EARNINGS', 'SHOULD', 'VALUATION', 'IS', 'IN', 'AT',
+    'UP', 'OR', 'AS', 'BE', 'BY', 'DO', 'GO', 'IF', 'NO', 'TO', 'SO',
+    'WILL', 'HAVE', 'WITH', 'WOULD', 'COULD', 'ABOUT', 'JUST', 'THEM',
+    'THAN', 'SOME', 'TIME', 'VERY', 'WHEN', 'THEN', 'BULL', 'BEAR', 'CASE',
+    'WHAT', 'THAT', 'THIS'
   ]);
 
-  for (const match of matches) {
-    const upper = match.toUpperCase();
-    if (!commonWords.has(upper)) {
-      return upper;
+  // Try to find ticker after common question keywords (more likely to be the ticker)
+  const contextPatterns = [
+    /(?:for|about|of|on)\s+([A-Z]{1,5})\b/i,
+    /([A-Z]{1,5})\s+(?:stock|ticker|symbol)\b/i,
+  ];
+
+  for (const pattern of contextPatterns) {
+    const match = message.match(pattern);
+    if (match && !commonWords.has(match[1].toUpperCase())) {
+      return match[1].toUpperCase();
     }
   }
 
-  // Return last used ticker as fallback
+  // Fall back to finding all 1-5 letter uppercase words, filter commons
+  const allMatches = message.match(/\b([A-Z]{1,5})\b/gi);
+  if (allMatches) {
+    // Prefer matches from the end of the message (more likely to be the ticker)
+    for (let i = allMatches.length - 1; i >= 0; i--) {
+      const upper = allMatches[i].toUpperCase();
+      if (!commonWords.has(upper)) {
+        return upper;
+      }
+    }
+  }
+
   return lastTicker || null;
 }
 
