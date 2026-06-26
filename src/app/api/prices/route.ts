@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getHistoricalPrices, isTiingoConfigured, ResampleFreq } from '@/lib/tiingo';
 
 export type Timeframe = '1D' | '5D' | '1M' | '3M' | '6M' | '1Y' | '3Y' | 'MAX';
 
@@ -71,29 +72,79 @@ function generateMockPrices(
   return result;
 }
 
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+interface RangeConfig {
+  daysBack: number;
+  resampleFreq: ResampleFreq;
+}
+
+// Tiingo's EOD endpoint has no intraday granularity, so '1D' has no real
+// equivalent here and is excluded — it always falls back to mock below.
+const RANGE_CONFIG: Record<Exclude<Timeframe, '1D'>, RangeConfig> = {
+  '5D': { daysBack: 10, resampleFreq: 'daily' }, // pad for weekends
+  '1M': { daysBack: 35, resampleFreq: 'daily' },
+  '3M': { daysBack: 95, resampleFreq: 'daily' },
+  '6M': { daysBack: 185, resampleFreq: 'daily' },
+  '1Y': { daysBack: 370, resampleFreq: 'daily' },
+  '3Y': { daysBack: 3 * 365 + 5, resampleFreq: 'weekly' },
+  MAX: { daysBack: 25 * 365, resampleFreq: 'monthly' },
+};
+
+const dataPointsMap: Record<Timeframe, number> = {
+  '1D': 24,
+  '5D': 30,
+  '1M': 20,
+  '3M': 60,
+  '6M': 52,
+  '1Y': 52,
+  '3Y': 36,
+  MAX: 24,
+};
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const ticker = searchParams.get('ticker')?.toUpperCase();
   const timeframe = (searchParams.get('timeframe') || '1M') as Timeframe;
 
-  if (!ticker || !/^[A-Z]{1,5}$/.test(ticker)) {
-    return NextResponse.json(
-      { error: 'Invalid ticker' },
-      { status: 400 }
-    );
+  if (!ticker || !/^[A-Z.]{1,6}$/.test(ticker)) {
+    return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 });
   }
 
-  // Determine number of data points based on timeframe
-  const dataPointsMap: Record<Timeframe, number> = {
-    '1D': 24,   // 24 hours
-    '5D': 30,   // 5 days, ~6h intervals
-    '1M': 20,   // ~1.5 day intervals
-    '3M': 60,   // ~1.5 day intervals
-    '6M': 52,   // ~week intervals
-    '1Y': 52,   // Week intervals
-    '3Y': 36,   // Month intervals
-    'MAX': 24,  // Month intervals
-  };
+  // Real data path: Tiingo historical EOD prices (no intraday on free tier,
+  // so '1D' always uses mock).
+  if (isTiingoConfigured() && timeframe !== '1D') {
+    const config = RANGE_CONFIG[timeframe];
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - config.daysBack);
+
+    const points = await getHistoricalPrices(
+      ticker,
+      toDateStr(startDate),
+      toDateStr(endDate),
+      config.resampleFreq
+    );
+
+    if (points && points.length > 0) {
+      const response: PricesResponse = {
+        dates: points.map((p) => p.date),
+        prices: points.map((p) => p.price),
+        startDate: points[0].date,
+        endDate: points[points.length - 1].date,
+      };
+
+      return NextResponse.json(response, {
+        headers: {
+          'Cache-Control': 'public, max-age=300',
+          'X-Price-Source': 'tiingo',
+        },
+      });
+    }
+    // Falls through to mock if Tiingo returned nothing (bad symbol, etc).
+  }
 
   const dataPoints = dataPointsMap[timeframe] || 20;
   const priceData = generateMockPrices(ticker, timeframe, dataPoints);
@@ -107,7 +158,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(response, {
     headers: {
-      'Cache-Control': 'public, max-age=300', // 5 minute cache
+      'Cache-Control': 'public, max-age=300',
+      'X-Price-Source': 'mock',
     },
   });
 }
