@@ -17,3 +17,7 @@ export { KPIBadge } from './KPIBadge';
 export { HoldingsList } from './HoldingsList';
 export { AllocationChart } from './AllocationChart';
 export { RecentTransactions } from './RecentTransactions';
+export { PriceChart } from './PriceChart';
+export type { PriceChartProps } from './PriceChart';
+export { TimeframeToggle } from './TimeframeToggle';
+export type { TimeframeToggleProps } from './TimeframeToggle';
