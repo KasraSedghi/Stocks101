@@ -12,3 +12,4 @@ export { Autocomplete } from './Autocomplete';
 export { DatePicker } from './DatePicker';
 export { Layout } from './Layout';
 export { Navigation } from './Navigation';
+export { ProtectedRoute } from './ProtectedRoute';
