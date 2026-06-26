@@ -22,13 +22,33 @@ import { usePortfolio } from '@/hooks';
 import { calculateCompoundGrowth, getCompoundingAccelerationYear, YearlySnapshot } from '@/utils/compound';
 import { formatCurrency } from '@/utils/financial';
 import { COLORS } from '@/config/design-tokens';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Info } from 'lucide-react';
 
 const PRESETS = {
-  conservative: { rate: 7, years: 20, label: 'Conservative' },
-  moderate: { rate: 10, years: 20, label: 'Moderate' },
-  aggressive: { rate: 15, years: 15, label: 'Aggressive' },
-  fire: { rate: 10, years: 30, label: 'FIRE Goal' },
+  conservative: {
+    rate: 7,
+    years: 20,
+    label: 'Conservative',
+    description: 'S&P 500 inflation-adjusted returns. Balanced, long-term approach.',
+  },
+  moderate: {
+    rate: 10,
+    years: 20,
+    label: 'Moderate',
+    description: 'S&P 500 nominal historical returns. Standard buy-and-hold strategy.',
+  },
+  aggressive: {
+    rate: 15,
+    years: 15,
+    label: 'Aggressive',
+    description: 'Growth-focused portfolio. Higher volatility, potential for higher returns.',
+  },
+  fire: {
+    rate: 10,
+    years: 30,
+    label: 'FIRE Goal',
+    description: 'Financial Independence, Retire Early. Extended timeline with moderate contributions.',
+  },
 };
 
 const REFERENCE_RATES = [
@@ -311,22 +331,39 @@ function CompoundCalculator() {
           </Card>
 
           {/* Preset Buttons */}
-          <Card title="Quick Presets">
+          <Card>
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-base font-semibold text-white">Quick Presets</h3>
+              <div
+                className="group relative cursor-help"
+                title="Click a preset to instantly apply a portfolio strategy"
+              >
+                <Info size={16} className="text-gray-500 hover:text-gray-300 transition-colors" />
+                <div className="absolute -right-2 -top-10 hidden group-hover:block bg-dark-panel border border-dark-border rounded px-2 py-1 text-xs text-gray-300 whitespace-nowrap">
+                  Select a strategy below
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {(Object.entries(PRESETS) as [keyof typeof PRESETS, (typeof PRESETS)[keyof typeof PRESETS]][]).map(
                 ([key, preset]) => (
-                  <Button
-                    key={key}
-                    onClick={() => handlePreset(key)}
-                    variant={
-                      annualRate === preset.rate && years === preset.years
-                        ? 'primary'
-                        : 'secondary'
-                    }
-                    size="sm"
-                  >
-                    {preset.label}
-                  </Button>
+                  <div key={key} className="group relative">
+                    <Button
+                      onClick={() => handlePreset(key)}
+                      variant={
+                        annualRate === preset.rate && years === preset.years
+                          ? 'primary'
+                          : 'secondary'
+                      }
+                      size="sm"
+                      title={preset.description}
+                    >
+                      {preset.label}
+                    </Button>
+                    <div className="absolute -top-12 left-0 hidden group-hover:block bg-dark-panel border border-dark-border rounded px-3 py-2 text-xs text-gray-300 whitespace-nowrap z-10">
+                      {preset.description}
+                    </div>
+                  </div>
                 )
               )}
             </div>
