@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ProtectedRoute, Button, Card, Input, NumberInput, DatePicker } from '@/components';
+import { ProtectedRoute, Button, Card, Input, NumberInput, DatePicker, ErrorBoundary } from '@/components';
 import { Layout } from '@/components';
 import { usePortfolio } from '@/hooks';
 import { useToast } from '@/hooks';
@@ -12,7 +12,9 @@ export default function AddTransactionPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <AddTransactionForm />
+        <ErrorBoundary>
+          <AddTransactionForm />
+        </ErrorBoundary>
       </Layout>
     </ProtectedRoute>
   );
