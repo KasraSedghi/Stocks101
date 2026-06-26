@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getQuotes, isFinnhubConfigured } from '@/lib/finnhub';
 
 export interface PriceBatchResponse {
   ticker: string;
@@ -8,7 +9,7 @@ export interface PriceBatchResponse {
   companyName: string;
 }
 
-// Mock company names
+// Mock company names (used only in the no-API-key fallback path).
 const COMPANY_NAMES: Record<string, string> = {
   AAPL: 'Apple',
   MSFT: 'Microsoft',
@@ -35,6 +36,20 @@ function generateMockPrice(
   };
 }
 
+function mockBatch(tickers: string[]): PriceBatchResponse[] {
+  const seed = Math.floor(Date.now() / 5000); // changes every 5s
+  return tickers.map((ticker) => {
+    const mock = generateMockPrice(ticker, seed);
+    return {
+      ticker,
+      price: mock.price,
+      change: mock.change,
+      changePct: mock.changePct,
+      companyName: COMPANY_NAMES[ticker] || ticker,
+    };
+  });
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const tickersParam = searchParams.get('tickers');
@@ -49,7 +64,7 @@ export async function GET(request: NextRequest) {
   const tickers = tickersParam
     .split(',')
     .map((t) => t.trim().toUpperCase())
-    .filter((t) => /^[A-Z]{1,5}$/.test(t));
+    .filter((t) => /^[A-Z.]{1,6}$/.test(t));
 
   if (tickers.length === 0) {
     return NextResponse.json(
@@ -58,19 +73,37 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const seed = Math.floor(Date.now() / 5000); // Changes every 5 minutes
-  const results: PriceBatchResponse[] = tickers.map((ticker) => {
-    const mockData = generateMockPrice(ticker, seed);
-    return {
-      ticker,
-      price: mockData.price,
-      change: mockData.change,
-      changePct: mockData.changePct,
-      companyName: COMPANY_NAMES[ticker] || ticker,
-    };
-  });
+  // Real data path: Finnhub when an API key is configured.
+  if (isFinnhubConfigured()) {
+    const quotes = await getQuotes(tickers);
+    const bySymbol = new Map(quotes.map((q) => [q.ticker, q]));
 
-  return NextResponse.json(results, {
-    headers: { 'Cache-Control': 'public, max-age=60' },
+    // For any ticker Finnhub couldn't resolve, fall back to a mock entry so the
+    // UI still renders something rather than dropping the row entirely.
+    const mockFallback = new Map(
+      mockBatch(tickers.filter((t) => !bySymbol.has(t))).map((m) => [
+        m.ticker,
+        m,
+      ])
+    );
+
+    const results: PriceBatchResponse[] = tickers.map(
+      (t) => bySymbol.get(t) ?? mockFallback.get(t)!
+    );
+
+    return NextResponse.json(results, {
+      headers: {
+        'Cache-Control': 'public, max-age=30',
+        'X-Price-Source': 'finnhub',
+      },
+    });
+  }
+
+  // No key configured: keep the app working with mock data.
+  return NextResponse.json(mockBatch(tickers), {
+    headers: {
+      'Cache-Control': 'public, max-age=60',
+      'X-Price-Source': 'mock',
+    },
   });
 }

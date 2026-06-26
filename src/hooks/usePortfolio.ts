@@ -19,25 +19,10 @@ export interface UsePortfolioReturn {
   refresh: () => Promise<void>;
 }
 
-// Mock current prices - in production, fetch from MCP servers
-const MOCK_PRICES: Record<string, number> = {
-  AAPL: 195.45,
-  MSFT: 430.12,
-  GOOGL: 142.80,
-  AMZN: 198.50,
-  NVDA: 875.30,
-  TSLA: 245.67,
-  META: 502.13,
-  NFLX: 247.89,
-};
-
-function getCurrentPrice(ticker: string): number {
-  return MOCK_PRICES[ticker.toUpperCase()] || 100;
-}
-
 export function usePortfolio(): UsePortfolioReturn {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +54,60 @@ export function usePortfolio(): UsePortfolioReturn {
   useEffect(() => {
     fetchTransactions();
   }, [user?.id]);
+
+  // Fetch live prices for held tickers and refresh every 60s.
+  const tickerKey = Array.from(
+    new Set(transactions.map((t) => t.ticker.toUpperCase()))
+  )
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    if (!tickerKey) {
+      setPrices({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch(`/api/prices/batch?tickers=${tickerKey}`);
+        if (!res.ok) return;
+        const data: Array<{ ticker: string; price: number }> = await res.json();
+        if (cancelled) return;
+        setPrices(
+          data.reduce(
+            (acc, item) => {
+              acc[item.ticker.toUpperCase()] = item.price;
+              return acc;
+            },
+            {} as Record<string, number>
+          )
+        );
+      } catch (err) {
+        console.error('Error fetching portfolio prices:', err);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [tickerKey]);
+
+  // Resolve a current price: live quote first, else most recent transaction
+  // price for that ticker (avoids showing $0 before quotes load or on failure).
+  const getCurrentPrice = (ticker: string): number => {
+    const symbol = ticker.toUpperCase();
+    if (prices[symbol] && prices[symbol] > 0) return prices[symbol];
+    const lastTxn = transactions.find(
+      (t) => t.ticker.toUpperCase() === symbol
+    );
+    return lastTxn?.price_per_share ?? 0;
+  };
 
   // Calculate metrics
   const metrics = transactions.length > 0
