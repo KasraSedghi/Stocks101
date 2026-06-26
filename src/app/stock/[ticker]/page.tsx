@@ -13,9 +13,10 @@ import {
   QuickActions,
   Modal,
   Card,
+  ChatTerminal,
 } from '@/components';
 import { TransactionForm } from '@/components/TransactionForm';
-import { ChevronLeft, Star } from 'lucide-react';
+import { ChevronLeft, Star, MessageSquare } from 'lucide-react';
 import { COLORS } from '@/config/design-tokens';
 
 interface StockMetricsData {
@@ -61,6 +62,7 @@ function StockDetail() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<'BUY' | 'SELL'>('BUY');
+  const [chatOpen, setChatOpen] = useState(false);
 
   const holding = holdings.find((h) => h.ticker === ticker);
   const ownedShares = holding?.shares || 0;
@@ -148,19 +150,32 @@ function StockDetail() {
           )}
         </div>
 
-        <button
-          onClick={handleAddToWatchlist}
-          className="p-3 rounded-lg transition-colors"
-          style={{
-            backgroundColor: isInWatchlist ? `${COLORS.brand.purple}20` : `${COLORS.dark.border}`,
-            color: isInWatchlist ? COLORS.brand.purple : COLORS.gray[400],
-          }}
-        >
-          <Star
-            size={24}
-            fill={isInWatchlist ? COLORS.brand.purple : 'none'}
-          />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setChatOpen(true)}
+            className="p-3 rounded-lg transition-colors"
+            style={{
+              backgroundColor: COLORS.dark.border,
+              color: COLORS.gray[400],
+            }}
+            title="Ask AI about this stock"
+          >
+            <MessageSquare size={24} />
+          </button>
+          <button
+            onClick={handleAddToWatchlist}
+            className="p-3 rounded-lg transition-colors"
+            style={{
+              backgroundColor: isInWatchlist ? `${COLORS.brand.purple}20` : `${COLORS.dark.border}`,
+              color: isInWatchlist ? COLORS.brand.purple : COLORS.gray[400],
+            }}
+          >
+            <Star
+              size={24}
+              fill={isInWatchlist ? COLORS.brand.purple : 'none'}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Price Chart */}
@@ -264,6 +279,13 @@ function StockDetail() {
           onCancel={() => setTransactionModalOpen(false)}
         />
       </Modal>
+
+      {/* AI Chat Terminal */}
+      <ChatTerminal
+        ticker={ticker}
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+      />
     </div>
   );
 }
