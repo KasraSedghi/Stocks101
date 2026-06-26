@@ -5,3 +5,5 @@ export { usePortfolio } from './usePortfolio';
 export type { UsePortfolioReturn } from './usePortfolio';
 export { usePriceChart } from './usePriceChart';
 export type { Timeframe, ChartData } from './usePriceChart';
+export { useWatchlist } from './useWatchlist';
+export type { UseWatchlistReturn } from './useWatchlist';
