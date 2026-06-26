@@ -15,6 +15,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   TRANSACTIONS: '/transactions',
   WATCHLIST: '/watchlist',
+  CALCULATOR: '/calculator',
   SETTINGS: '/settings',
 
   // Stock detail
@@ -49,6 +50,7 @@ export function isProtectedRoute(pathname: string): boolean {
     ROUTES.DASHBOARD,
     ROUTES.TRANSACTIONS,
     ROUTES.WATCHLIST,
+    ROUTES.CALCULATOR,
     ROUTES.SETTINGS,
   ];
   return protectedRoutes.some(route => pathname.startsWith(route));

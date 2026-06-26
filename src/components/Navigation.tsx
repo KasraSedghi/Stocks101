@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Menu, X, User, LogOut } from 'lucide-react';
+import { Menu, X, User, LogOut, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/config/routes';
 
@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: ROUTES.DASHBOARD, label: 'Dashboard' },
   { href: ROUTES.TRANSACTIONS, label: 'Transactions' },
   { href: ROUTES.WATCHLIST, label: 'Watchlist' },
+  { href: ROUTES.CALCULATOR, label: 'Calculator', icon: Calculator },
 ];
 
 export function Navigation() {
