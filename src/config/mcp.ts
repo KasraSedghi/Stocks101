@@ -27,9 +27,9 @@ export const MCP_SERVERS: Record<MCPProvider, MCPServerConfig> = {
     name: 'Agent Toolbelt',
     provider: 'agent-toolbelt',
     enabled: !!process.env.AGENT_TOOLBELT_API_KEY,
-    endpoint: 'https://api.agenttoolbelt.live',
+    endpoint: 'https://www.agenttoolbelt.live/api/tools',
     apiKey: process.env.AGENT_TOOLBELT_API_KEY,
-    timeout: 10000,
+    timeout: 30000, // live analysis calls can take ~15-20s
     rateLimit: {
       requestsPerMonth: 250,
       requestsPerMinute: 10,

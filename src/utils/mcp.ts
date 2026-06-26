@@ -1,3 +1,5 @@
+import { fetchAgentToolbeltAnalysis } from '@/lib/agentToolbelt';
+
 export type MCPTool =
   | 'stock_thesis'
   | 'earnings_analysis'
@@ -104,57 +106,32 @@ export async function routeMCPQuery(
   tool: MCPTool,
   usageCount: number
 ): Promise<string> {
-  // Primary: use Agent Toolbelt if under limit
+  // This runs server-side (from the chat route), so call the Agent Toolbelt
+  // API directly rather than round-tripping through an internal API route.
   if (usageCount < 250) {
-    try {
-      const response = await fetch('/api/mcp/agent-toolbelt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, tool }),
-      });
+    const analysis = await fetchAgentToolbeltAnalysis(ticker, tool);
 
-      if (response.ok) {
-        const data = await response.json();
-        return data.result || formatFallbackResponse(ticker, tool);
-      }
-
-      if (response.status === 429) {
-        // Rate limited, try fallback
-        return callMaverickMCP(ticker, tool);
-      }
-
-      throw new Error('Agent Toolbelt request failed');
-    } catch (err) {
-      console.error('Agent Toolbelt error:', err);
-      return callMaverickMCP(ticker, tool);
-    }
-  }
-
-  // Fallback: Maverick MCP
-  return callMaverickMCP(ticker, tool);
-}
-
-async function callMaverickMCP(ticker: string, tool: MCPTool): Promise<string> {
-  try {
-    const response = await fetch('/api/mcp/maverick', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, tool }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.result || formatFallbackResponse(ticker, tool);
+    if (analysis.ok && analysis.text) {
+      return analysis.text;
     }
 
-    return formatFallbackResponse(ticker, tool);
-  } catch (err) {
-    console.error('Maverick MCP error:', err);
-    return formatFallbackResponse(ticker, tool);
+    // On rate limit or any failure, degrade to a useful fallback message.
+    return formatFallbackResponse(ticker, tool, analysis.status);
   }
+
+  // Quota exhausted locally.
+  return formatFallbackResponse(ticker, tool);
 }
 
-function formatFallbackResponse(ticker: string, tool: MCPTool): string {
+function formatFallbackResponse(
+  ticker: string,
+  tool: MCPTool,
+  status?: number
+): string {
+  if (status === 429) {
+    return `**${ticker} — Rate Limited**\n\nAgent Toolbelt is temporarily rate limiting requests (max 10/min). Wait a moment and try again.`;
+  }
+
   const toolDescriptions = {
     stock_thesis: `**${ticker} Stock Thesis**\n\nNo real-time data available. Consider this stock based on:\n- Historical performance\n- Sector trends\n- Management quality`,
     earnings_analysis: `**${ticker} Earnings Analysis**\n\nReal-time earnings data unavailable. Check earnings calendar for scheduled reports.`,

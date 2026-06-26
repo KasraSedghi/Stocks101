@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchAgentToolbeltAnalysis } from '@/lib/agentToolbelt';
 
 export interface AgentToolbeltRequest {
   ticker: string;
@@ -7,6 +8,7 @@ export interface AgentToolbeltRequest {
 
 export interface AgentToolbeltResponse {
   result: string;
+  cached?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -21,14 +23,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // In production, call actual Agent Toolbelt API
-    // https://agenttoolbelt.live/api/analyze?ticker=AAPL&tool=stock_thesis
-    // For now, return mock response
+    const analysis = await fetchAgentToolbeltAnalysis(ticker, tool);
 
-    const mockResponse = `**${ticker} ${tool}**\n\nAgent Toolbelt integration coming soon. This is a demonstration response.`;
+    if (!analysis.ok) {
+      // Surface rate-limit so callers can fall back; otherwise generic error.
+      const status = analysis.status === 429 ? 429 : 502;
+      return NextResponse.json(
+        {
+          error:
+            analysis.status === 429
+              ? 'Agent Toolbelt rate limit reached'
+              : 'Agent Toolbelt request failed',
+          status: analysis.status,
+        },
+        { status }
+      );
+    }
 
     return NextResponse.json<AgentToolbeltResponse>({
-      result: mockResponse,
+      result: analysis.text,
+      cached: analysis.cached,
     });
   } catch (err) {
     console.error('Agent Toolbelt API error:', err);
