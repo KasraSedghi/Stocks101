@@ -6,11 +6,26 @@ export type MCPTool =
   | 'bear_vs_bull';
 
 export function extractTicker(message: string, lastTicker?: string): string | null {
-  // Match 1-5 uppercase letters (or lowercase that we'll convert)
-  const match = message.match(/\b([A-Z]{1,5})\b/i);
-  if (match) {
-    return match[1].toUpperCase();
+  // Find all potential ticker symbols (1-5 uppercase letters at word boundaries)
+  const matches = message.match(/\b([A-Z]{1,5})\b/gi);
+  if (!matches) return lastTicker || null;
+
+  // Filter out common English words that look like tickers
+  const commonWords = new Set([
+    'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER',
+    'WAS', 'ONE', 'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW',
+    'ITS', 'MAY', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WAY', 'WHO', 'BOY',
+    'DID', 'ITS', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE', 'WHAT', 'WHICH',
+    'BEAT', 'MISS', 'EARNINGS', 'SHOULD', 'VALUATION'
+  ]);
+
+  for (const match of matches) {
+    const upper = match.toUpperCase();
+    if (!commonWords.has(upper)) {
+      return upper;
+    }
   }
+
   // Return last used ticker as fallback
   return lastTicker || null;
 }

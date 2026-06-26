@@ -61,11 +61,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract ticker from message or use provided
-    const ticker =
-      extractTicker(message, providedTicker) ||
-      providedTicker ||
-      'UNKNOWN';
+    // Use provided ticker, or extract from message
+    const ticker = providedTicker || extractTicker(message) || 'UNKNOWN';
 
     // Determine intent
     const intent = determineIntent(message);
