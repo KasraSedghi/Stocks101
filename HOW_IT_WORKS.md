@@ -187,6 +187,113 @@ A few rules show up again and again across the codebase, on purpose:
 
 ---
 
+## 9. Full Page Walkthrough: Loading the Dashboard
+
+This traces *everything* that happens between you clicking "Dashboard" and seeing numbers on screen — useful for understanding how the pieces from §2-§5 actually wire together in a real page.
+
+[src/app/dashboard/page.tsx](src/app/dashboard/page.tsx) is a thin shell:
+```
+<ProtectedRoute>          gatekeeper — redirects to /auth/login if no session
+  <Layout>                 nav bar + page container + the floating chat button
+    <ErrorBoundary>         catches render crashes so one bad component doesn't blank the page
+      <Dashboard />         the actual page content
+```
+
+Inside `Dashboard()`, the only data call is one hook: `usePortfolio()`. Everything else — KPI cards, the holdings table, the allocation pie chart, the recent-transactions list — is just *presentation* components fed the numbers that hook computes. This is intentional: the page component itself contains zero math, it only arranges pre-computed values into a grid.
+
+### What `usePortfolio()` actually does, step by step
+[src/hooks/usePortfolio.ts](src/hooks/usePortfolio.ts)
+
+1. **On mount**, queries Supabase directly from the browser:
+   ```js
+   supabase.from('transactions').select('*').eq('user_id', user.id)
+   ```
+   Note this query *also* relies on RLS (§2) as a second layer — even though it explicitly filters by `user_id` in the query, if that filter were ever removed by a bug, Postgres would still refuse to return other users' rows.
+
+2. **Derives a `tickerKey`** — every unique ticker across your transactions, sorted and joined into a string like `"AAPL,MSFT,NVDA"`. This string is used as a React dependency: the effect that fetches prices only re-runs when the *set* of tickers you own changes, not on every transaction edit.
+
+3. **Fetches live prices** by calling `/api/prices/batch?tickers=AAPL,MSFT,NVDA` once immediately, then again every 60 seconds via `setInterval`. Results land in a `prices` state object: `{ AAPL: 279.34, MSFT: 421.10, ... }`.
+
+4. **`getCurrentPrice(ticker)`** is the safety-net function every other calculation reads through: if a live price exists and is `> 0`, use it; otherwise fall back to the price of your most recent transaction for that ticker. This is why the dashboard never flashes "$0.00" while the price fetch is still in flight on first load — it shows your last known cost instead.
+
+5. **Feeds transactions + prices into `aggregatePortfolio()`** (§4) on every render. This is *not* cached or memoized — it's cheap enough (a few hundred transactions at most) that recalculating on every render is simpler and safer than trying to invalidate a cache correctly.
+
+6. Returns `{ transactions, holdings, metrics, loading, error, addTransaction, deleteTransaction, refresh }` — the dashboard, the stock detail page, and the transaction form all consume different slices of this same hook, so there's exactly one source of truth for "what does the user own."
+
+### Why polling instead of real-time push
+Supabase supports real-time subscriptions (instant updates when a row changes), but prices aren't *in* Supabase — they come from Finnhub, an external HTTP API with no push mechanism on the free tier. Polling every 60 seconds is the only option without paying for a websocket-based plan, and it matches Finnhub's quote cache TTL (§5) so you're never polling faster than the cached data could change anyway.
+
+---
+
+## 10. Full Page Walkthrough: A Stock Detail Page
+
+[src/app/stock/[ticker]/page.tsx](src/app/stock/[ticker]/page.tsx) — visiting `/stock/NVDA` is where the most moving parts meet on one screen. Four independent data sources feed this page simultaneously:
+
+| What you see | Hook / fetch | Source |
+|---|---|---|
+| Price chart | `usePriceChart(ticker, transactions)` → `GET /api/prices` | Tiingo (or mock) |
+| Header price/day-change, 52w range, P/E, etc. | `useEffect` → `GET /api/stock/[ticker]/metrics` | Finnhub-backed metrics route |
+| "Your Position" panel | `usePortfolio()` (same hook as the dashboard) | Supabase transactions + live price |
+| Star/watchlist toggle | `useWatchlist()` | Supabase `watchlists` table |
+| AI chat | `<ChatTerminal ticker={ticker} />` | Agent Toolbelt, pre-bound to this ticker |
+
+These are deliberately **independent and parallel** — none of them wait on each other. The chart can finish loading while the metrics are still spinning; the watchlist star is interactive immediately because it doesn't depend on price data at all. If one of the four fails (say, the metrics fetch throws), the others keep working — there's no single waterfall where one slow API blocks the whole page.
+
+### How the chart's caching actually works
+[src/hooks/usePriceChart.ts](src/hooks/usePriceChart.ts) keeps an in-memory `Map` (`cacheRef`) keyed by `"TICKER:TIMEFRAME"` (e.g. `"NVDA:1M"`), each entry tagged with a timestamp. Every timeframe has its own **TTL** (time-to-live) — 5 minutes for `1D`, all the way up to 1 week for `3Y`/`MAX`. The reasoning: a 1-day chart is stale within minutes, but a max-history chart spanning decades doesn't meaningfully change if it's an hour old, so there's no reason to re-fetch it that often and burn API quota.
+
+There's also a **prefetch-on-hover** behavior: `TimeframeToggle` calls `onTimeframeHover` when you mouse over a button (e.g. hovering "1Y" while looking at "1M"), which silently fetches that data *before* you click — so by the time you actually click, the chart swaps instantly instead of showing a loading skeleton. A `prefetchRef` Set prevents firing the same prefetch twice if you wiggle your mouse over the same button repeatedly.
+
+### How a BUY/SELL actually gets recorded
+[src/components/TransactionForm.tsx](src/components/TransactionForm.tsx), opened from the stock page's "Buy"/"Sell" buttons inside a `<Modal>`:
+
+1. You fill in shares, price, date. As you type, if you're selling, `calculateEstimatedRealizedGain()` (§4 math, simplified to a single lot) live-previews your profit/loss *before* you submit — this is a separate, lighter calculation from the full FIFO pass, just for instant feedback.
+2. On submit, `validateTransaction()` runs client-side checks: valid ticker format, positive shares/price, date not in the future, and — for SELLs — that you actually own enough shares (checked against `holdings`, which came from the FIFO calculation).
+3. If valid, `addTransaction()` (from `usePortfolio`) inserts one row into Supabase's `transactions` table.
+4. On success, `usePortfolio` calls `fetchTransactions()` again — a full refetch, not an optimistic local update — which means the FIFO engine reruns from scratch with the new row included, and every component reading from `usePortfolio` (dashboard, this page, holdings list) updates automatically because they all share the same hook state shape.
+
+The choice to refetch rather than optimistically patch local state trades a tiny bit of latency (one extra round-trip) for guaranteed correctness — the FIFO math is order-sensitive enough that hand-patching state locally would risk drifting from what a fresh calculation would produce.
+
+---
+
+## 11. Request/Response Shape Cheat Sheet
+
+For when you want to hit an endpoint directly (e.g. with `curl`) and know what you're looking at:
+
+**`GET /api/prices/batch?tickers=AAPL,MSFT`**
+```json
+[
+  { "ticker": "AAPL", "price": 279.34, "change": 4.19, "changePct": 1.52, "companyName": "Apple Inc" }
+]
+```
+Header `X-Price-Source: finnhub` or `mock`.
+
+**`GET /api/prices?ticker=AAPL&timeframe=1M`**
+```json
+{ "dates": ["2026-05-28", "..."], "prices": [275.1, "..."], "startDate": "...", "endDate": "..." }
+```
+Header `X-Price-Source: tiingo` or `mock`. `timeframe=1D` is always `mock`.
+
+**`POST /api/chat`**
+```json
+// request
+{ "message": "is NVDA overvalued?", "history": [...], "ticker": "NVDA" }
+// response
+{ "response": "**NVDA — Nvidia Corporation**\n...", "usageCount": 17 }
+```
+
+**`POST /api/mcp/agent-toolbelt`** (used for ad-hoc tool calls outside the chat flow)
+```json
+// request
+{ "ticker": "NVDA", "tool": "valuation_snapshot" }
+// success
+{ "result": "...", "cached": false }
+// failure
+{ "error": "...", "status": 429 }
+```
+
+---
+
 ## Quick Reference: "Where do I look if..."
 
 | Question | File |
@@ -199,3 +306,6 @@ A few rules show up again and again across the codebase, on purpose:
 | What actually calls the AI analysis API? | [src/lib/agentToolbelt.ts](src/lib/agentToolbelt.ts) |
 | How is login/session handled? | [src/hooks/useAuth.tsx](src/hooks/useAuth.tsx) |
 | What does the database actually look like? | [supabase/schema.sql](supabase/schema.sql) |
+| How does the dashboard turn transactions into numbers on screen? | [src/hooks/usePortfolio.ts](src/hooks/usePortfolio.ts) |
+| How does the chart cache and prefetch data? | [src/hooks/usePriceChart.ts](src/hooks/usePriceChart.ts) |
+| What happens when I submit a BUY/SELL form? | [src/components/TransactionForm.tsx](src/components/TransactionForm.tsx) |
